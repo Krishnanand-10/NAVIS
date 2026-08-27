@@ -59,8 +59,9 @@ data/raw/*
 data/processed/*
 !data/processed/.gitkeep
 
-# Logs and outputs
-logs/
-*.log
-output/
-results/
+# Local notes / Problem Statement
+problem_statement.txt
+problem_statement.md
+*.local*
+
+
