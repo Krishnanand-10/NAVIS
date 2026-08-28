@@ -318,3 +318,7 @@ class GenericCSVLoader:
             gt_pos=gt_pos,
             metadata={"source": "generic_csv", "filepath": filepath}
         )
+
+
+# Alias
+CSVTrajectoryLoader = GenericCSVLoader

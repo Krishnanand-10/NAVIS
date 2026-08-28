@@ -174,9 +174,9 @@ def quat_multiply(q1: np.ndarray, q2: np.ndarray) -> np.ndarray:
     z = w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2
 
     if q1.ndim == 1 and q2.ndim == 1:
-        return quat_normalize(np.array([w, x, y, z], dtype=np.float64))
+        return np.array([w, x, y, z], dtype=np.float64)
     else:
-        return quat_normalize(np.stack([w, x, y, z], axis=-1))
+        return np.stack([w, x, y, z], axis=-1)
 
 
 def quat_conjugate(q: np.ndarray) -> np.ndarray:
@@ -257,7 +257,7 @@ def quat_integrate(q: np.ndarray, omega: np.ndarray, dt: float) -> np.ndarray:
         np.sin(half_theta) * axis[2]
     ], dtype=np.float64)
     
-    return quat_multiply(q, dq)
+    return quat_normalize(quat_multiply(q, dq))
 
 
 def enu_to_ned(data: np.ndarray) -> np.ndarray:

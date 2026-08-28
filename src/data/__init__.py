@@ -8,6 +8,7 @@ from src.data.loaders import (
     KITTILoader,
     RoNINLoader,
     GenericCSVLoader,
+    CSVTrajectoryLoader,
 )
 
 __all__ = [
@@ -17,4 +18,5 @@ __all__ = [
     "KITTILoader",
     "RoNINLoader",
     "GenericCSVLoader",
+    "CSVTrajectoryLoader",
 ]

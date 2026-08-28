@@ -15,6 +15,16 @@ from src.utils.coordinate_transforms import (
     enu_to_ned,
     ned_to_enu,
 )
+from src.utils.metrics import (
+    TrajectoryMetrics,
+    compute_ate,
+    compute_rpe,
+    compute_drift_metrics,
+    compute_attitude_error,
+    compute_velocity_error,
+    align_trajectories_umeyama,
+    evaluate_trajectory,
+)
 
 __all__ = [
     "euler_to_quat",
@@ -29,4 +39,12 @@ __all__ = [
     "world_to_body",
     "enu_to_ned",
     "ned_to_enu",
+    "TrajectoryMetrics",
+    "compute_ate",
+    "compute_rpe",
+    "compute_drift_metrics",
+    "compute_attitude_error",
+    "compute_velocity_error",
+    "align_trajectories_umeyama",
+    "evaluate_trajectory",
 ]
