@@ -581,11 +581,18 @@
             else if (sc.reduction_pct < 50) pillClass = 'low';
             else if (sc.reduction_pct < 85) pillClass = 'med';
 
+            // Clean any legacy tags
+            let cleanName = sc.name;
+            if (/mod 2/i.test(cleanName) || /classical/i.test(cleanName)) cleanName = "Classical Dead Reckoning";
+            else if (/mod 3/i.test(cleanName) || /zupt/i.test(cleanName)) cleanName = "AI-ZUPT Velocity Clamping";
+            else if (/mod 4/i.test(cleanName) || /neural/i.test(cleanName)) cleanName = "Deep Neural Drift Estimator";
+            else if (/mod 5/i.test(cleanName) || /ekf/i.test(cleanName)) cleanName = "AI-Enhanced EKF Fusion";
+
             tr.innerHTML = `
                 <td>
                     <div class="benchmark-name">
                         <span class="dot" style="background: ${sc.color}"></span>
-                        <span>${sc.name}</span>
+                        <span>${cleanName}</span>
                     </div>
                 </td>
                 <td>${sc.ate_rmse.toFixed(2)}m</td>

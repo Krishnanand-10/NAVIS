@@ -43,7 +43,7 @@ def generate_dashboard_data(
     Returns:
         Structured JSON-serializable dictionary containing:
         - Timestamps & sensor telemetry (IMU, GPS validity, Baro)
-        - 3D trajectories: Ground Truth, Pure DR (Mod 2), ZUPT-DR (Mod 3), Neural DR (Mod 4), AI-EKF (Mod 5)
+        - 3D trajectories: Ground Truth, Classical Dead Reckoning, AI-ZUPT, Neural DR, AI-EKF
         - Attitude Euler angles (roll, pitch, yaw) & velocity profiles
         - Online estimated biases & +-3 sigma covariance uncertainty envelopes
         - Multi-engine comparative benchmark scorecards (ATE RMSE, Final Drift, % Reduction)
