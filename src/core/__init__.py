@@ -28,6 +28,11 @@ if TYPE_CHECKING:
         DeadReckoningResult,
         run_dead_reckoning,
     )
+    from src.core.zupt_dr import (
+        ZUPTDeadReckoningEngine,
+        ZUPTDeadReckoningResult,
+        run_zupt_dead_reckoning,
+    )
 
 
 def __getattr__(name: str):
@@ -65,6 +70,14 @@ def __getattr__(name: str):
         import src.core.traditional_dr as _t
         return getattr(_t, name)
 
+    if name in (
+        "ZUPTDeadReckoningEngine",
+        "ZUPTDeadReckoningResult",
+        "run_zupt_dead_reckoning",
+    ):
+        import src.core.zupt_dr as _z
+        return getattr(_z, name)
+
     raise AttributeError(f"module 'src.core' has no attribute '{name}'")
 
 
@@ -86,4 +99,7 @@ __all__ = [
     "DeadReckoningEngine",
     "DeadReckoningResult",
     "run_dead_reckoning",
+    "ZUPTDeadReckoningEngine",
+    "ZUPTDeadReckoningResult",
+    "run_zupt_dead_reckoning",
 ]
