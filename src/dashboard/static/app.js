@@ -448,13 +448,14 @@
         const h = elements.horizonCanvas.height;
         const cx = w / 2;
         const cy = h / 2;
+        const r = cx - 3;
 
         ctxHorizon.clearRect(0, 0, w, h);
         ctxHorizon.save();
 
-        // Clip circular dial
+        // Clip circular dial to prevent any pixel leakage
         ctxHorizon.beginPath();
-        ctxHorizon.arc(cx, cy, cx - 4, 0, Math.PI * 2);
+        ctxHorizon.arc(cx, cy, r, 0, Math.PI * 2);
         ctxHorizon.clip();
 
         // Rotate for roll
@@ -462,23 +463,35 @@
         ctxHorizon.rotate((rollDeg * Math.PI) / 180);
 
         // Pitch displacement
-        const pitchOffset = (pitchDeg / 90) * (h / 2);
+        const pitchOffset = (pitchDeg / 90) * (r * 1.5);
 
         // Sky (blue/cyan)
         ctxHorizon.fillStyle = '#0284c7';
-        ctxHorizon.fillRect(-w, -h + pitchOffset, w * 2, h);
+        ctxHorizon.fillRect(-w * 2, -h * 2 + pitchOffset, w * 4, h * 2);
 
         // Ground (brown/dark)
         ctxHorizon.fillStyle = '#78350f';
-        ctxHorizon.fillRect(-w, pitchOffset, w * 2, h);
+        ctxHorizon.fillRect(-w * 2, pitchOffset, w * 4, h * 2);
 
         // Horizon Line
         ctxHorizon.strokeStyle = '#ffffff';
         ctxHorizon.lineWidth = 2;
         ctxHorizon.beginPath();
-        ctxHorizon.moveTo(-w, pitchOffset);
-        ctxHorizon.lineTo(w, pitchOffset);
+        ctxHorizon.moveTo(-w * 2, pitchOffset);
+        ctxHorizon.lineTo(w * 2, pitchOffset);
         ctxHorizon.stroke();
+
+        // Pitch Ladder Lines (+-10, +-20 deg)
+        ctxHorizon.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+        ctxHorizon.lineWidth = 1.5;
+        for (let p of [-20, -10, 10, 20]) {
+            const py = pitchOffset - (p / 90) * (r * 1.5);
+            const lineHalfW = (Math.abs(p) === 10) ? 12 : 18;
+            ctxHorizon.beginPath();
+            ctxHorizon.moveTo(-lineHalfW, py);
+            ctxHorizon.lineTo(lineHalfW, py);
+            ctxHorizon.stroke();
+        }
 
         ctxHorizon.restore();
 
@@ -486,19 +499,25 @@
         ctxHorizon.strokeStyle = '#00f0ff';
         ctxHorizon.lineWidth = 2.5;
         ctxHorizon.beginPath();
-        ctxHorizon.moveTo(cx - 25, cy);
-        ctxHorizon.lineTo(cx - 8, cy);
-        ctxHorizon.lineTo(cx - 8, cy + 6);
-        ctxHorizon.moveTo(cx + 8, cy + 6);
-        ctxHorizon.lineTo(cx + 8, cy);
-        ctxHorizon.lineTo(cx + 25, cy);
+        ctxHorizon.moveTo(cx - 20, cy);
+        ctxHorizon.lineTo(cx - 6, cy);
+        ctxHorizon.lineTo(cx - 6, cy + 5);
+        ctxHorizon.moveTo(cx + 6, cy + 5);
+        ctxHorizon.lineTo(cx + 6, cy);
+        ctxHorizon.lineTo(cx + 20, cy);
         ctxHorizon.stroke();
 
-        // Outer Bezel
-        ctxHorizon.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-        ctxHorizon.lineWidth = 3;
+        // Center dot
+        ctxHorizon.fillStyle = '#00f0ff';
         ctxHorizon.beginPath();
-        ctxHorizon.arc(cx, cy, cx - 2, 0, Math.PI * 2);
+        ctxHorizon.arc(cx, cy, 2, 0, Math.PI * 2);
+        ctxHorizon.fill();
+
+        // Outer Bezel
+        ctxHorizon.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+        ctxHorizon.lineWidth = 2.5;
+        ctxHorizon.beginPath();
+        ctxHorizon.arc(cx, cy, r, 0, Math.PI * 2);
         ctxHorizon.stroke();
     }
 

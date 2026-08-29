@@ -351,14 +351,32 @@ body.dark-theme {
     width: 120px;
     height: 120px;
     position: relative;
+    overflow: hidden;
+    border-radius: 50%;
+    background: #000000;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+}
+
+.canvas-container canvas {
+    width: 120px;
+    height: 120px;
+    display: block;
 }
 
 .inst-readout {
-    margin-top: 6px;
-    font-size: 10px;
+    margin-top: 8px;
+    font-size: 11px;
     display: flex;
+    justify-content: center;
     gap: 8px;
     color: var(--text-secondary);
+}
+
+.inst-readout span {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--panel-border);
+    padding: 2px 6px;
+    border-radius: 4px;
 }
 
 .inst-readout b {
