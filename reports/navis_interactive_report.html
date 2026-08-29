@@ -1177,7 +1177,7 @@ body.dark-theme {
                 x: [tr.ai_ekf.x[0]],
                 y: [tr.ai_ekf.y[0]],
                 z: [tr.ai_ekf.z[0]],
-                marker: { color: '#00f0ff', size: 8, symbol: 'diamond' },
+                marker: { color: '#00f0ff', size: 14, symbol: 'diamond', line: { color: '#ffffff', width: 2 } },
                 showlegend: false,
             }
         ];
@@ -1240,6 +1240,10 @@ body.dark-theme {
 
     function play() {
         if (!AppState.data) return;
+        const N = AppState.data.timestamps.length;
+        if (AppState.currentIndex >= N - 1) {
+            AppState.currentIndex = 0;
+        }
         AppState.isPlaying = true;
         elements.btnPlayPause.innerHTML = '&#10074;&#10074;';
         AppState.lastFrameTime = performance.now();
@@ -1275,11 +1279,13 @@ body.dark-theme {
         const delta = (timestamp - AppState.lastFrameTime) / 1000.0;
         AppState.lastFrameTime = timestamp;
 
-        const dt = AppState.data.metadata.dt || 0.02;
-        const stepsToAdvance = (delta * AppState.playbackSpeed) / dt;
+        const d = AppState.data;
+        const N = d.timestamps.length;
+        const totalDuration = (d.timestamps[N - 1] - d.timestamps[0]) || 40.0;
+        const effectiveDt = totalDuration / Math.max(1, N - 1);
+        const stepsToAdvance = (delta * AppState.playbackSpeed) / effectiveDt;
 
         AppState.currentIndex += stepsToAdvance;
-        const N = AppState.data.timestamps.length;
 
         if (AppState.currentIndex >= N - 1) {
             AppState.currentIndex = N - 1;
