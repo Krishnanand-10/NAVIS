@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NAVIS | AI-Powered Dead Reckoning & Sensor Fusion Dashboard</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Plotly.js for 3D WebGL Visualization -->
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="dark-theme">
+    <!-- TOP HEADER -->
+    <header class="app-header">
+        <div class="header-brand">
+            <div class="brand-logo-glow"></div>
+            <div class="brand-text">
+                <span class="brand-title">NAVIS</span>
+                <span class="brand-subtitle">AI-POWERED INERTIAL NAVIGATION SYSTEM</span>
+            </div>
+            <span class="isro-badge">ISRO / SIH26168</span>
+        </div>
+
+        <div class="header-status-bar">
+            <div class="status-chip" id="gps-status-chip">
+                <span class="pulse-dot green"></span>
+                <span class="chip-label">GPS STATUS:</span>
+                <span class="chip-value" id="gps-status-val">LOCKED</span>
+            </div>
+            <div class="status-chip" id="motion-context-chip">
+                <span class="pulse-dot cyan"></span>
+                <span class="chip-label">AI CONTEXT:</span>
+                <span class="chip-value" id="motion-context-val">VEHICULAR</span>
+            </div>
+            <div class="status-chip" id="zupt-chip">
+                <span class="pulse-dot purple"></span>
+                <span class="chip-label">AI-ZUPT:</span>
+                <span class="chip-value" id="zupt-val">MOVING</span>
+            </div>
+            <div class="status-chip clock-chip">
+                <span class="chip-label">TIME:</span>
+                <span class="chip-value mono" id="telemetry-time">00:00.00</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN DASHBOARD CONTAINER -->
+    <main class="dashboard-grid">
+        
+        <!-- LEFT COLUMN: CONTROLS & FLIGHT INSTRUMENTS -->
+        <aside class="panel left-panel">
+            <!-- 1. Scenario Configuration Card -->
+            <section class="card config-card">
+                <div class="card-header">
+                    <h3>SCENARIO CONTROLLER</h3>
+                    <span class="badge">CONFIG</span>
+                </div>
+                <div class="card-body">
+                    <div class="form-group">
+                        <label for="profile-select">Motion Profile</label>
+                        <select id="profile-select" class="form-control">
+                            <option value="urban_driving" selected>Urban Driving (Stop-and-Go + Turns)</option>
+                            <option value="figure_eight">Figure-Eight (Pedestrian Walk)</option>
+                            <option value="helical_3d">3D Helical Climb (Aerial Drone)</option>
+                            <option value="pedestrian">Pedestrian Stride Walking</option>
+                            <option value="planetary_rover">Planetary Rover (ISRO Lunar Profile)</option>
+                            <option value="straight">Straight Line Acceleration</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="imu-grade-select">IMU Sensor Grade</label>
+                        <select id="imu-grade-select" class="form-control">
+                            <option value="consumer" selected>Consumer MEMS (Smartphone / Drone)</option>
+                            <option value="industrial">Industrial MEMS (Robotics / Automotive)</option>
+                            <option value="tactical">Tactical / Space Grade (ISRO High-Precision)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group half">
+                            <label for="duration-input">Duration (s)</label>
+                            <input type="number" id="duration-input" class="form-control mono" value="40" min="10" max="180">
+                        </div>
+                        <div class="form-group half">
+                            <label for="seed-input">Random Seed</label>
+                            <input type="number" id="seed-input" class="form-control mono" value="42">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <div class="checkbox-label">
+                            <input type="checkbox" id="gps-outage-toggle" checked>
+                            <label for="gps-outage-toggle">Inject GPS Denial Outage</label>
+                        </div>
+                        <div class="form-row" id="outage-inputs">
+                            <div class="form-group half">
+                                <label for="outage-start">Outage Start (s)</label>
+                                <input type="number" id="outage-start" class="form-control mono" value="12" min="0">
+                            </div>
+                            <div class="form-group half">
+                                <label for="outage-end">Outage End (s)</label>
+                                <input type="number" id="outage-end" class="form-control mono" value="28" min="0">
+                            </div>
+                        </div>
+                    </div>
+
+                    <button id="run-sim-btn" class="btn btn-primary btn-block">
+                        <span class="btn-icon">&#9654;</span>
+                        <span class="btn-text">RUN MULTI-ENGINE SIMULATION</span>
+                    </button>
+                </div>
+            </section>
+
+            <!-- 2. Real-Time Flight & Telemetry Instruments -->
+            <section class="card instrument-card">
+                <div class="card-header">
+                    <h3>PRIMARY TELEMETRY GAUGES</h3>
+                    <span class="badge live-badge">LIVE</span>
+                </div>
+                <div class="card-body instruments-grid">
+                    <!-- Attitude / Artificial Horizon -->
+                    <div class="instrument-box">
+                        <span class="inst-label">ATTITUDE (ROLL / PITCH)</span>
+                        <div class="canvas-container">
+                            <canvas id="horizon-canvas" width="140" height="140"></canvas>
+                        </div>
+                        <div class="inst-readout mono">
+                            <span>R: <b id="roll-val">0.0°</b></span>
+                            <span>P: <b id="pitch-val">0.0°</b></span>
+                        </div>
+                    </div>
+
+                    <!-- Compass / Heading -->
+                    <div class="instrument-box">
+                        <span class="inst-label">3D COMPASS (YAW)</span>
+                        <div class="canvas-container">
+                            <canvas id="compass-canvas" width="140" height="140"></canvas>
+                        </div>
+                        <div class="inst-readout mono">
+                            <span>HDG: <b id="yaw-val">000°</b></span>
+                        </div>
+                    </div>
+
+                    <!-- Speed & Altitude -->
+                    <div class="telemetry-bar-row">
+                        <div class="telemetry-stat">
+                            <span class="stat-label">SPEED (EKF)</span>
+                            <span class="stat-val mono" id="speed-val">0.00 <small>m/s</small></span>
+                        </div>
+                        <div class="telemetry-stat">
+                            <span class="stat-label">ALTITUDE</span>
+                            <span class="stat-val mono" id="alt-val">0.00 <small>m</small></span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </aside>
+
+        <!-- CENTER COLUMN: 3D TRAJECTORY & PLAYBACK -->
+        <div class="center-column">
+            <!-- 3D WebGL Canvas Card -->
+            <section class="card visualizer-card">
+                <div class="card-header visualizer-header">
+                    <div class="header-left">
+                        <h3>INTERACTIVE 3D TRAJECTORY ENGINE</h3>
+                        <span class="subtext">WebGL Multi-Path Overlay</span>
+                    </div>
+                    <div class="view-toggles">
+                        <button class="btn btn-sm btn-outline active" id="view-3d-btn">3D Isometric</button>
+                        <button class="btn btn-sm btn-outline" id="view-top-btn">2D Top (XY)</button>
+                        <button class="btn btn-sm btn-outline" id="view-side-btn">2D Altitude (XZ)</button>
+                        <button class="btn btn-sm btn-outline" id="reset-cam-btn">Reset Camera</button>
+                    </div>
+                </div>
+
+                <!-- Trace Visibility Legend Controls -->
+                <div class="trace-legend-bar">
+                    <label class="legend-item"><input type="checkbox" id="trace-gt" checked><span class="dot white"></span> Ground Truth</label>
+                    <label class="legend-item"><input type="checkbox" id="trace-mod2" checked><span class="dot red"></span> Classical DR (Mod 2)</label>
+                    <label class="legend-item"><input type="checkbox" id="trace-mod3" checked><span class="dot amber"></span> AI-ZUPT (Mod 3)</label>
+                    <label class="legend-item"><input type="checkbox" id="trace-mod4" checked><span class="dot cyan"></span> Neural DR (Mod 4)</label>
+                    <label class="legend-item"><input type="checkbox" id="trace-mod5" checked><span class="dot green"></span> AI-EKF Fusion (Mod 5)</label>
+                </div>
+
+                <!-- 3D Plotly Canvas Container -->
+                <div id="plotly-3d-canvas" class="plotly-canvas">
+                    <div class="loading-overlay" id="loading-spinner">
+                        <div class="spinner"></div>
+                        <span>Computing Navigation Kinematics & Deep Neural Drift...</span>
+                    </div>
+                </div>
+
+                <!-- Playback & Scrubber Controls Bar -->
+                <div class="playback-bar">
+                    <div class="playback-buttons">
+                        <button id="btn-play-pause" class="btn btn-icon-round" title="Play/Pause">&#9654;</button>
+                        <button id="btn-rewind" class="btn btn-icon-round" title="Rewind">&#9198;</button>
+                    </div>
+
+                    <div class="scrubber-container">
+                        <input type="range" id="time-scrubber" min="0" max="100" value="0" step="0.1" class="custom-slider">
+                    </div>
+
+                    <div class="speed-selector">
+                        <span class="speed-label">SPEED:</span>
+                        <button class="speed-btn active" data-speed="1">1x</button>
+                        <button class="speed-btn" data-speed="2">2x</button>
+                        <button class="speed-btn" data-speed="5">5x</button>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- RIGHT COLUMN: ANALYTICS & DRIFT BENCHMARKS -->
+        <aside class="panel right-panel">
+            <!-- 1. Comparative Benchmark Scorecards -->
+            <section class="card benchmark-card">
+                <div class="card-header">
+                    <h3>SYSTEM BENCHMARKS & ACCURACY</h3>
+                    <span class="badge success-badge">ACCURACY</span>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="benchmark-table" id="benchmark-table">
+                            <thead>
+                                <tr>
+                                    <th>Engine</th>
+                                    <th>ATE RMSE</th>
+                                    <th>Final Drift</th>
+                                    <th>Reduction</th>
+                                </tr>
+                            </thead>
+                            <tbody id="benchmark-tbody">
+                                <!-- Populated dynamically by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 2. Real-Time Cumulative Drift Error Curves -->
+            <section class="card chart-card">
+                <div class="card-header">
+                    <h3>CUMULATIVE DRIFT ERROR (m)</h3>
+                    <span class="badge">ATE vs TIME</span>
+                </div>
+                <div class="card-body">
+                    <div id="drift-chart" class="mini-chart"></div>
+                </div>
+            </section>
+
+            <!-- 3. AI Dynamic Sensor Bias Tracking -->
+            <section class="card chart-card">
+                <div class="card-header">
+                    <h3>AI ESTIMATED SENSOR BIASES</h3>
+                    <span class="badge">ESTIMATION</span>
+                </div>
+                <div class="card-body">
+                    <div id="bias-chart" class="mini-chart"></div>
+                </div>
+            </section>
+        </aside>
+
+    </main>
+
+    <footer class="app-footer">
+        <span>NAVIS 2026 | ISRO SIH26168 Autonomous GPS-Denied Navigation Suite</span>
+        <span>Version 1.0.0 (Production Core Modules 1-6)</span>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>
