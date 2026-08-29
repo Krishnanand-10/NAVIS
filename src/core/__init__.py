@@ -33,6 +33,12 @@ if TYPE_CHECKING:
         ZUPTDeadReckoningResult,
         run_zupt_dead_reckoning,
     )
+    from src.core.neural_dr import (
+        NeuralDeadReckoningEngine,
+        NeuralDeadReckoningResult,
+        NeuralCorrectionMode,
+        run_neural_dead_reckoning,
+    )
 
 
 def __getattr__(name: str):
@@ -78,6 +84,15 @@ def __getattr__(name: str):
         import src.core.zupt_dr as _z
         return getattr(_z, name)
 
+    if name in (
+        "NeuralDeadReckoningEngine",
+        "NeuralDeadReckoningResult",
+        "NeuralCorrectionMode",
+        "run_neural_dead_reckoning",
+    ):
+        import src.core.neural_dr as _n
+        return getattr(_n, name)
+
     raise AttributeError(f"module 'src.core' has no attribute '{name}'")
 
 
@@ -102,4 +117,8 @@ __all__ = [
     "ZUPTDeadReckoningEngine",
     "ZUPTDeadReckoningResult",
     "run_zupt_dead_reckoning",
+    "NeuralDeadReckoningEngine",
+    "NeuralDeadReckoningResult",
+    "NeuralCorrectionMode",
+    "run_neural_dead_reckoning",
 ]

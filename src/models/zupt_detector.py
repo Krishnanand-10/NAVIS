@@ -19,12 +19,15 @@ from typing import Dict, Optional, Tuple, Union, List
 import numpy as np
 
 try:
-    import torch
-    import torch.nn as nn
-    import torch.nn.functional as F
+    import torch  # type: ignore
+    import torch.nn as nn  # type: ignore
+    import torch.nn.functional as F  # type: ignore
     TORCH_AVAILABLE = True
 except ImportError:
     TORCH_AVAILABLE = False
+    torch = None  # type: ignore
+    nn = object  # type: ignore
+    F = object  # type: ignore
 
 
 # ============================================================================
