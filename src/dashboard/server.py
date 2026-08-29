@@ -191,20 +191,30 @@ from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 # ============================================================================
 
 class DashboardRequestHandler(BaseHTTPRequestHandler):
-    """Multi-Threaded HTTP Request Handler for NAVIS Dashboard."""
+    """Multi-Threaded HTTP/1.1 Request Handler for NAVIS Dashboard."""
 
+    protocol_version = "HTTP/1.1"
     STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 
-    def _set_headers(self, content_type: str = "application/json", status: int = 200):
+    def _send_data(self, data_bytes: bytes, content_type: str = "application/json", status: int = 200):
+        """Send complete HTTP response with exact Content-Length."""
         self.send_response(status)
         self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(data_bytes)))
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Origin, Accept")
+        self.send_header("Connection", "keep-alive")
         self.end_headers()
+        self.wfile.write(data_bytes)
 
     def do_OPTIONS(self):
-        self._set_headers(status=204)
+        self.send_response(204)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Origin, Accept")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
 
     def do_GET(self):
         try:
@@ -227,11 +237,10 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
                     {"id": "industrial", "name": "Industrial MEMS (Robotics / Automotive)"},
                     {"id": "tactical", "name": "Tactical / Space Grade (ISRO High-Precision)"},
                 ]
-                self._set_headers()
-                self.wfile.write(json.dumps({"profiles": profiles, "imu_grades": imu_grades}).encode("utf-8"))
+                resp = json.dumps({"profiles": profiles, "imu_grades": imu_grades}).encode("utf-8")
+                self._send_data(resp, "application/json", 200)
 
             elif parsed_path == "/api/sample":
-                # Return pre-simulated payload
                 payload = generate_dashboard_data(
                     profile="urban_driving",
                     duration=30.0,
@@ -240,29 +249,27 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
                     gps_outage=(10.0, 22.0),
                     seed=42
                 )
-                self._set_headers()
-                self.wfile.write(json.dumps(payload).encode("utf-8"))
+                resp = json.dumps(payload).encode("utf-8")
+                self._send_data(resp, "application/json", 200)
 
             else:
-                # Serve Static Files
                 req_file = "index.html" if parsed_path in ("/", "") else parsed_path.lstrip("/")
                 file_path = os.path.join(self.STATIC_DIR, req_file)
 
                 if os.path.exists(file_path) and not os.path.isdir(file_path):
                     mime, _ = mimetypes.guess_type(file_path)
                     mime = mime or "application/octet-stream"
-                    self._set_headers(content_type=mime, status=200)
                     with open(file_path, "rb") as f:
-                        self.wfile.write(f.read())
+                        content = f.read()
+                    self._send_data(content, mime, 200)
                 else:
-                    self._set_headers(content_type="text/plain", status=404)
-                    self.wfile.write(b"404 Not Found")
+                    self._send_data(b"404 Not Found", "text/plain", 404)
         except (BrokenPipeError, ConnectionResetError):
             pass
         except Exception as e:
             traceback.print_exc()
-            self._set_headers(content_type="application/json", status=500)
-            self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+            err_resp = json.dumps({"error": str(e)}).encode("utf-8")
+            self._send_data(err_resp, "application/json", 500)
 
     def do_POST(self):
         try:
@@ -289,17 +296,16 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
                     gps_outage=outage,
                     seed=seed
                 )
-                self._set_headers()
-                self.wfile.write(json.dumps(payload).encode("utf-8"))
+                resp = json.dumps(payload).encode("utf-8")
+                self._send_data(resp, "application/json", 200)
             else:
-                self._set_headers(content_type="text/plain", status=404)
-                self.wfile.write(b"404 Not Found")
+                self._send_data(b"404 Not Found", "text/plain", 404)
         except (BrokenPipeError, ConnectionResetError):
             pass
         except Exception as e:
             traceback.print_exc()
-            self._set_headers(content_type="application/json", status=500)
-            self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+            err_resp = json.dumps({"error": str(e)}).encode("utf-8")
+            self._send_data(err_resp, "application/json", 500)
 
     def log_message(self, format, *args):
         # Clean formatted logging

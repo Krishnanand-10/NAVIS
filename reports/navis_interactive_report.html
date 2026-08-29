@@ -985,21 +985,21 @@ body.dark-theme {
         if (window.__PRELOADED_NAVIS_DATA__) {
             console.log('[NAVIS] Loading embedded preloaded dataset...');
             loadSimulationData(window.__PRELOADED_NAVIS_DATA__);
-        } else {
-            console.log('[NAVIS] Fetching initial sample simulation...');
-            try {
-                const response = await fetch('/api/sample');
-                if (response.ok) {
-                    const data = await response.json();
-                    loadSimulationData(data);
-                } else {
-                    console.warn('[NAVIS] Sample endpoint failed, running fallback simulation.');
-                    runSimulation();
-                }
-            } catch (err) {
-                console.warn('[NAVIS] Server offline or fetch error, running simulation request.');
-                runSimulation();
+            return;
+        }
+
+        console.log('[NAVIS] Fetching initial sample simulation...');
+        try {
+            const response = await fetch('/api/sample', { cache: 'no-cache' });
+            if (response.ok) {
+                const data = await response.json();
+                loadSimulationData(data);
+            } else {
+                elements.loadingSpinner.classList.add('hidden');
             }
+        } catch (err) {
+            console.warn('[NAVIS] Initial sample load waiting for server:', err);
+            elements.loadingSpinner.classList.add('hidden');
         }
     }
 
@@ -1081,12 +1081,10 @@ body.dark-theme {
                 loadSimulationData(data);
             } else {
                 const errData = await res.json().catch(() => ({}));
-                console.error('[NAVIS] Backend error:', errData);
-                alert(`Simulation failed: ${errData.error || 'Server error'}`);
+                console.error('[NAVIS] Simulation backend error:', errData);
             }
         } catch (err) {
             console.error('[NAVIS] Simulation network error:', err);
-            alert('Failed to connect to simulation backend. Make sure the server is running:\npython -m src.dashboard.server --port 8000');
         } finally {
             elements.loadingSpinner.classList.add('hidden');
             elements.runSimBtn.disabled = false;
