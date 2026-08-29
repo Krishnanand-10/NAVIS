@@ -203,44 +203,44 @@
                 line: { color: '#ffffff', width: 4, dash: 'dash' },
                 visible: AppState.traceVisibility.gt,
             },
-            // 1: Classical DR (Mod 2)
+            // 1: Classical Dead Reckoning
             {
                 type: 'scatter3d',
                 mode: 'lines',
-                name: 'Classical DR (Mod 2)',
+                name: 'Classical Dead Reckoning',
                 x: tr.classical_dr.x,
                 y: tr.classical_dr.y,
                 z: tr.classical_dr.z,
                 line: { color: '#ef4444', width: 3 },
                 visible: AppState.traceVisibility.mod2,
             },
-            // 2: AI-ZUPT (Mod 3)
+            // 2: AI-ZUPT Velocity Clamping
             {
                 type: 'scatter3d',
                 mode: 'lines',
-                name: 'AI-ZUPT (Mod 3)',
+                name: 'AI-ZUPT Velocity Clamping',
                 x: tr.zupt_dr.x,
                 y: tr.zupt_dr.y,
                 z: tr.zupt_dr.z,
                 line: { color: '#f59e0b', width: 3.5 },
                 visible: AppState.traceVisibility.mod3,
             },
-            // 3: Neural DR (Mod 4)
+            // 3: Deep Neural Drift Estimator
             {
                 type: 'scatter3d',
                 mode: 'lines',
-                name: 'Neural DR (Mod 4)',
+                name: 'Deep Neural Drift Estimator',
                 x: tr.neural_dr.x,
                 y: tr.neural_dr.y,
                 z: tr.neural_dr.z,
                 line: { color: '#06b6d4', width: 3.5 },
                 visible: AppState.traceVisibility.mod4,
             },
-            // 4: AI-EKF Fusion (Mod 5)
+            // 4: AI-Enhanced EKF Fusion
             {
                 type: 'scatter3d',
                 mode: 'lines',
-                name: 'AI-EKF Fusion (Mod 5)',
+                name: 'AI-Enhanced EKF Fusion',
                 x: tr.ai_ekf.x,
                 y: tr.ai_ekf.y,
                 z: tr.ai_ekf.z,
@@ -601,10 +601,10 @@
         const err = data.errors_vs_time;
 
         const traces = [
-            { x: t, y: err.classical_dr, mode: 'lines', name: 'Pure DR (Mod 2)', line: { color: '#ef4444', width: 2 } },
-            { x: t, y: err.zupt_dr, mode: 'lines', name: 'AI-ZUPT (Mod 3)', line: { color: '#f59e0b', width: 2 } },
-            { x: t, y: err.neural_dr, mode: 'lines', name: 'Neural DR (Mod 4)', line: { color: '#06b6d4', width: 2 } },
-            { x: t, y: err.ai_ekf, mode: 'lines', name: 'AI-EKF (Mod 5)', line: { color: '#10b981', width: 2.5 } },
+            { x: t, y: err.classical_dr, mode: 'lines', name: 'Classical Dead Reckoning', line: { color: '#ef4444', width: 2 } },
+            { x: t, y: err.zupt_dr, mode: 'lines', name: 'AI-ZUPT Velocity Clamping', line: { color: '#f59e0b', width: 2 } },
+            { x: t, y: err.neural_dr, mode: 'lines', name: 'Deep Neural Drift Estimator', line: { color: '#06b6d4', width: 2 } },
+            { x: t, y: err.ai_ekf, mode: 'lines', name: 'AI-Enhanced EKF Fusion', line: { color: '#10b981', width: 2.5 } },
         ];
 
         const layout = {

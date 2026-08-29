@@ -180,10 +180,10 @@
                 <!-- Trace Visibility Legend Controls -->
                 <div class="trace-legend-bar">
                     <label class="legend-item"><input type="checkbox" id="trace-gt" checked><span class="dot white"></span> Ground Truth</label>
-                    <label class="legend-item"><input type="checkbox" id="trace-mod2" checked><span class="dot red"></span> Classical DR (Mod 2)</label>
-                    <label class="legend-item"><input type="checkbox" id="trace-mod3" checked><span class="dot amber"></span> AI-ZUPT (Mod 3)</label>
-                    <label class="legend-item"><input type="checkbox" id="trace-mod4" checked><span class="dot cyan"></span> Neural DR (Mod 4)</label>
-                    <label class="legend-item"><input type="checkbox" id="trace-mod5" checked><span class="dot green"></span> AI-EKF Fusion (Mod 5)</label>
+                    <label class="legend-item"><input type="checkbox" id="trace-mod2" checked><span class="dot red"></span> Classical Dead Reckoning</label>
+                    <label class="legend-item"><input type="checkbox" id="trace-mod3" checked><span class="dot amber"></span> AI-ZUPT Velocity Clamping</label>
+                    <label class="legend-item"><input type="checkbox" id="trace-mod4" checked><span class="dot cyan"></span> Deep Neural Drift Estimator</label>
+                    <label class="legend-item"><input type="checkbox" id="trace-mod5" checked><span class="dot green"></span> AI-Enhanced EKF Fusion</label>
                 </div>
 
                 <!-- 3D Plotly Canvas Container -->
@@ -228,7 +228,7 @@
                         <table class="benchmark-table" id="benchmark-table">
                             <thead>
                                 <tr>
-                                    <th>Engine</th>
+                                    <th>Navigation Engine</th>
                                     <th>ATE RMSE</th>
                                     <th>Final Drift</th>
                                     <th>Reduction</th>
@@ -269,7 +269,7 @@
 
     <footer class="app-footer">
         <span>NAVIS 2026 | ISRO SIH26168 Autonomous GPS-Denied Navigation Suite</span>
-        <span>Version 1.0.0 (Production Core Modules 1-6)</span>
+        <span>Deep Neural Dead Reckoning & AI-EKF Handoff System</span>
     </footer>
 
     <script src="app.js"></script>

@@ -99,16 +99,16 @@ def generate_dashboard_data(
         }
 
     base_ate = mod2_result.metrics.ate_rmse if mod2_result.metrics else 1.0
-    score_mod2 = extract_score("Classical DR (Mod 2)", mod2_result.metrics, "#ef4444")
+    score_mod2 = extract_score("Classical Dead Reckoning", mod2_result.metrics, "#ef4444")
     score_mod2["reduction_pct"] = 0.0
 
-    score_mod3 = extract_score("AI-ZUPT DR (Mod 3)", mod3_result.metrics_zupt, "#f59e0b")
+    score_mod3 = extract_score("AI-ZUPT Velocity Clamping", mod3_result.metrics_zupt, "#f59e0b")
     score_mod3["reduction_pct"] = float(round(max(0.0, (base_ate - score_mod3["ate_rmse"]) / base_ate * 100.0), 2))
 
-    score_mod4 = extract_score("Neural Drift Est (Mod 4)", mod4_result.metrics_neural, "#06b6d4")
+    score_mod4 = extract_score("Deep Neural Drift Estimator", mod4_result.metrics_neural, "#06b6d4")
     score_mod4["reduction_pct"] = float(round(max(0.0, (base_ate - score_mod4["ate_rmse"]) / base_ate * 100.0), 2))
 
-    score_mod5 = extract_score("AI-EKF Fusion (Mod 5)", mod5_result.metrics, "#10b981")
+    score_mod5 = extract_score("AI-Enhanced EKF Fusion", mod5_result.metrics, "#10b981")
     score_mod5["reduction_pct"] = float(round(max(0.0, (base_ate - score_mod5["ate_rmse"]) / base_ate * 100.0), 2))
 
     # Cumulative Error Curves vs Time
