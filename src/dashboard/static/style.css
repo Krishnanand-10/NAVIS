@@ -553,8 +553,41 @@ body.dark-theme {
     color: #000000;
 }
 
+.btn-icon-round.playing {
+    background: var(--accent-cyan);
+    color: #000000;
+    box-shadow: 0 0 16px var(--accent-cyan);
+}
+
 .scrubber-container {
     flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.scrubber-top-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+.scrubber-label {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+.scrubber-time-badge {
+    background: rgba(0, 240, 255, 0.15);
+    color: var(--accent-cyan);
+    border: 1px solid rgba(0, 240, 255, 0.3);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-weight: 700;
+    font-size: 10px;
 }
 
 .custom-slider {

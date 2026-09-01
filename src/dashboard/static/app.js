@@ -40,7 +40,9 @@
         telemetryTime: document.getElementById('telemetry-time'),
         gpsStatusChip: document.getElementById('gps-status-chip'),
         gpsStatusVal: document.getElementById('gps-status-val'),
+        motionContextChip: document.getElementById('motion-context-chip'),
         motionContextVal: document.getElementById('motion-context-val'),
+        zuptChip: document.getElementById('zupt-chip'),
         zuptVal: document.getElementById('zupt-val'),
         speedVal: document.getElementById('speed-val'),
         altVal: document.getElementById('alt-val'),
@@ -324,6 +326,7 @@
         }
         AppState.isPlaying = true;
         elements.btnPlayPause.innerHTML = '&#10074;&#10074;';
+        elements.btnPlayPause.classList.add('playing');
         AppState.lastFrameTime = performance.now();
         AppState.animationFrameId = requestAnimationFrame(animationLoop);
     }
@@ -331,6 +334,7 @@
     function pause() {
         AppState.isPlaying = false;
         elements.btnPlayPause.innerHTML = '&#9654;';
+        elements.btnPlayPause.classList.remove('playing');
         if (AppState.animationFrameId) {
             cancelAnimationFrame(AppState.animationFrameId);
             AppState.animationFrameId = null;
@@ -380,14 +384,23 @@
         AppState.animationFrameId = requestAnimationFrame(animationLoop);
     }
 
+    let lastMarkerUpdateTime = 0;
     function updateVehicleMarker(idx) {
         if (!AppState.data) return;
+        const now = performance.now();
+        if (now - lastMarkerUpdateTime < 33 && idx !== 0 && idx !== AppState.data.timestamps.length - 1) {
+            return;
+        }
+        lastMarkerUpdateTime = now;
+
         const tr = AppState.data.trajectories.ai_ekf;
-        Plotly.restyle('plotly-3d-canvas', {
-            x: [[tr.x[idx]]],
-            y: [[tr.y[idx]]],
-            z: [[tr.z[idx]]],
-        }, [5]);
+        try {
+            Plotly.restyle('plotly-3d-canvas', {
+                x: [[tr.x[idx]]],
+                y: [[tr.y[idx]]],
+                z: [[tr.z[idx]]],
+            }, [5]);
+        } catch (e) {}
     }
 
     // ========================================================================
@@ -399,9 +412,15 @@
         if (!d) return;
 
         const t = d.timestamps[idx];
+        const maxT = d.timestamps[d.timestamps.length - 1];
         const mins = Math.floor(t / 60);
         const secs = (t % 60).toFixed(2);
         elements.telemetryTime.textContent = `${mins.toString().padStart(2, '0')}:${secs.padStart(5, '0')}`;
+
+        const timeDisplay = document.getElementById('scrubber-time-display');
+        if (timeDisplay) {
+            timeDisplay.textContent = `${t.toFixed(1)}s / ${maxT.toFixed(1)}s`;
+        }
 
         // Speed & Altitude
         const speed = d.telemetry.speed_ekf[idx];
@@ -421,13 +440,15 @@
         // Chips
         const isGps = Boolean(d.telemetry.gps_valid[idx]);
         const handoffState = d.telemetry.handoff_state[idx];
-        elements.gpsStatusVal.textContent = isGps ? 'LOCKED' : (handoffState === 'recovering_gps' ? 'RECOVERING' : 'DENIED (AI-DR)');
-        elements.gpsStatusChip.querySelector('.pulse-dot').className = `pulse-dot ${isGps ? 'green' : (handoffState === 'recovering_gps' ? 'amber' : 'red')}`;
+        if (elements.gpsStatusVal) elements.gpsStatusVal.textContent = isGps ? 'LOCKED' : (handoffState === 'recovering_gps' ? 'RECOVERING' : 'DENIED (AI-DR)');
+        const gpsDot = elements.gpsStatusChip?.querySelector('.pulse-dot');
+        if (gpsDot) gpsDot.className = `pulse-dot ${isGps ? 'green' : (handoffState === 'recovering_gps' ? 'amber' : 'red')}`;
 
-        elements.motionContextVal.textContent = d.telemetry.motion_context[idx].toUpperCase();
+        if (elements.motionContextVal) elements.motionContextVal.textContent = d.telemetry.motion_context[idx].toUpperCase();
         const isStance = Boolean(d.telemetry.stance_flag[idx]);
-        elements.zuptVal.textContent = isStance ? 'STANCE (ZUPT)' : 'MOVING';
-        elements.zuptChip.querySelector('.pulse-dot').className = `pulse-dot ${isStance ? 'purple' : 'green'}`;
+        if (elements.zuptVal) elements.zuptVal.textContent = isStance ? 'STANCE (ZUPT)' : 'MOVING';
+        const zuptDot = elements.zuptChip?.querySelector('.pulse-dot');
+        if (zuptDot) zuptDot.className = `pulse-dot ${isStance ? 'purple' : 'green'}`;
 
         // Draw Instrument Canvases
         drawHorizon(roll, pitch);

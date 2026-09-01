@@ -566,8 +566,41 @@ body.dark-theme {
     color: #000000;
 }
 
+.btn-icon-round.playing {
+    background: var(--accent-cyan);
+    color: #000000;
+    box-shadow: 0 0 16px var(--accent-cyan);
+}
+
 .scrubber-container {
     flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.scrubber-top-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+.scrubber-label {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+.scrubber-time-badge {
+    background: rgba(0, 240, 255, 0.15);
+    color: var(--accent-cyan);
+    border: 1px solid rgba(0, 240, 255, 0.3);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-weight: 700;
+    font-size: 10px;
 }
 
 .custom-slider {
@@ -862,6 +895,10 @@ body.dark-theme {
                     </div>
 
                     <div class="scrubber-container">
+                        <div class="scrubber-top-row">
+                            <span class="scrubber-label">MISSION TELEMETRY PLAYBACK</span>
+                            <span class="scrubber-time-badge mono" id="scrubber-time-display">0.0s / 40.0s</span>
+                        </div>
                         <input type="range" id="time-scrubber" min="0" max="100" value="0" step="0.1" class="custom-slider">
                     </div>
 
@@ -980,7 +1017,9 @@ body.dark-theme {
         telemetryTime: document.getElementById('telemetry-time'),
         gpsStatusChip: document.getElementById('gps-status-chip'),
         gpsStatusVal: document.getElementById('gps-status-val'),
+        motionContextChip: document.getElementById('motion-context-chip'),
         motionContextVal: document.getElementById('motion-context-val'),
+        zuptChip: document.getElementById('zupt-chip'),
         zuptVal: document.getElementById('zupt-val'),
         speedVal: document.getElementById('speed-val'),
         altVal: document.getElementById('alt-val'),
@@ -1264,6 +1303,7 @@ body.dark-theme {
         }
         AppState.isPlaying = true;
         elements.btnPlayPause.innerHTML = '&#10074;&#10074;';
+        elements.btnPlayPause.classList.add('playing');
         AppState.lastFrameTime = performance.now();
         AppState.animationFrameId = requestAnimationFrame(animationLoop);
     }
@@ -1271,6 +1311,7 @@ body.dark-theme {
     function pause() {
         AppState.isPlaying = false;
         elements.btnPlayPause.innerHTML = '&#9654;';
+        elements.btnPlayPause.classList.remove('playing');
         if (AppState.animationFrameId) {
             cancelAnimationFrame(AppState.animationFrameId);
             AppState.animationFrameId = null;
@@ -1320,14 +1361,23 @@ body.dark-theme {
         AppState.animationFrameId = requestAnimationFrame(animationLoop);
     }
 
+    let lastMarkerUpdateTime = 0;
     function updateVehicleMarker(idx) {
         if (!AppState.data) return;
+        const now = performance.now();
+        if (now - lastMarkerUpdateTime < 33 && idx !== 0 && idx !== AppState.data.timestamps.length - 1) {
+            return;
+        }
+        lastMarkerUpdateTime = now;
+
         const tr = AppState.data.trajectories.ai_ekf;
-        Plotly.restyle('plotly-3d-canvas', {
-            x: [[tr.x[idx]]],
-            y: [[tr.y[idx]]],
-            z: [[tr.z[idx]]],
-        }, [5]);
+        try {
+            Plotly.restyle('plotly-3d-canvas', {
+                x: [[tr.x[idx]]],
+                y: [[tr.y[idx]]],
+                z: [[tr.z[idx]]],
+            }, [5]);
+        } catch (e) {}
     }
 
     // ========================================================================
@@ -1339,9 +1389,15 @@ body.dark-theme {
         if (!d) return;
 
         const t = d.timestamps[idx];
+        const maxT = d.timestamps[d.timestamps.length - 1];
         const mins = Math.floor(t / 60);
         const secs = (t % 60).toFixed(2);
         elements.telemetryTime.textContent = `${mins.toString().padStart(2, '0')}:${secs.padStart(5, '0')}`;
+
+        const timeDisplay = document.getElementById('scrubber-time-display');
+        if (timeDisplay) {
+            timeDisplay.textContent = `${t.toFixed(1)}s / ${maxT.toFixed(1)}s`;
+        }
 
         // Speed & Altitude
         const speed = d.telemetry.speed_ekf[idx];
@@ -1361,13 +1417,15 @@ body.dark-theme {
         // Chips
         const isGps = Boolean(d.telemetry.gps_valid[idx]);
         const handoffState = d.telemetry.handoff_state[idx];
-        elements.gpsStatusVal.textContent = isGps ? 'LOCKED' : (handoffState === 'recovering_gps' ? 'RECOVERING' : 'DENIED (AI-DR)');
-        elements.gpsStatusChip.querySelector('.pulse-dot').className = `pulse-dot ${isGps ? 'green' : (handoffState === 'recovering_gps' ? 'amber' : 'red')}`;
+        if (elements.gpsStatusVal) elements.gpsStatusVal.textContent = isGps ? 'LOCKED' : (handoffState === 'recovering_gps' ? 'RECOVERING' : 'DENIED (AI-DR)');
+        const gpsDot = elements.gpsStatusChip?.querySelector('.pulse-dot');
+        if (gpsDot) gpsDot.className = `pulse-dot ${isGps ? 'green' : (handoffState === 'recovering_gps' ? 'amber' : 'red')}`;
 
-        elements.motionContextVal.textContent = d.telemetry.motion_context[idx].toUpperCase();
+        if (elements.motionContextVal) elements.motionContextVal.textContent = d.telemetry.motion_context[idx].toUpperCase();
         const isStance = Boolean(d.telemetry.stance_flag[idx]);
-        elements.zuptVal.textContent = isStance ? 'STANCE (ZUPT)' : 'MOVING';
-        elements.zuptChip.querySelector('.pulse-dot').className = `pulse-dot ${isStance ? 'purple' : 'green'}`;
+        if (elements.zuptVal) elements.zuptVal.textContent = isStance ? 'STANCE (ZUPT)' : 'MOVING';
+        const zuptDot = elements.zuptChip?.querySelector('.pulse-dot');
+        if (zuptDot) zuptDot.className = `pulse-dot ${isStance ? 'purple' : 'green'}`;
 
         // Draw Instrument Canvases
         drawHorizon(roll, pitch);
