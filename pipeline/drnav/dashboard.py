@@ -6,6 +6,8 @@ Serves an interactive web dashboard on http://0.0.0.0:8080 displaying:
 - Interactive Leaflet OpenStreetMap View (OpenStreetMap / Dark Mode / Satellite)
 - Real-World Geodetic Trajectories anchored at User's Exact Physical Location
 - Live Vehicle Movement / Navigation Animation
+- Live Phone IMU & Motion Telemetry (Pitch, Roll, Yaw, Accel, Gyro, ZUPT)
+- Bi-directional Phone-to-PC Telemetry Sync via /api/telemetry
 - Position Error (Log Scale) with 10 m threshold
 - IMU Bias & Observability Metrics
 """
@@ -17,6 +19,7 @@ import base64
 import json
 import socket
 import sys
+import time
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -48,6 +51,24 @@ def get_local_ip() -> str:
 
 LOCAL_IP = get_local_ip()
 
+# Global in-memory storage for live phone telemetry stream
+latest_telemetry: Dict[str, Any] = {
+    "active": False,
+    "last_seen": 0.0,
+    "pitch": 0.0,
+    "roll": 0.0,
+    "yaw": 0.0,
+    "ax": 0.0,
+    "ay": 0.0,
+    "az": 9.81,
+    "amag": 9.81,
+    "gx": 0.0,
+    "gy": 0.0,
+    "gz": 0.0,
+    "still": True,
+    "source": "None",
+}
+
 
 def enu_to_geodetic(e: np.ndarray, n: np.ndarray, lat0: float = 12.9716, lon0: float = 77.5946) -> np.ndarray:
     """Convert relative ENU East/North (meters) to WGS84 Latitude/Longitude degrees."""
@@ -64,7 +85,7 @@ HTML_TEMPLATE = f"""<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NAVIS: SIH26168 Interactive Map Navigation Dashboard</title>
+    <title>NAVIS: SIH26168 Interactive Map & Live IMU Dashboard</title>
     <!-- Leaflet CSS & JS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -138,15 +159,6 @@ HTML_TEMPLATE = f"""<!DOCTYPE html>
         }}
         select:hover, button:hover {{
             background-color: #334155;
-            border-color: #475569;
-        }}
-        button {{
-            background-color: var(--accent-blue);
-            border-color: var(--accent-blue);
-            font-weight: 600;
-        }}
-        button:hover {{
-            background-color: #2563eb;
         }}
         .btn-play {{
             background-color: #059669;
@@ -166,8 +178,8 @@ HTML_TEMPLATE = f"""<!DOCTYPE html>
         .main-container {{
             display: grid;
             grid-template-columns: 1fr;
-            gap: 1.5rem;
-            padding: 1.5rem;
+            gap: 1.25rem;
+            padding: 1.25rem;
             max-width: 1600px;
             margin: 0 auto;
             width: 100%;
@@ -254,7 +266,7 @@ HTML_TEMPLATE = f"""<!DOCTYPE html>
 
         #map {{
             width: 100%;
-            height: 580px;
+            height: 520px;
             border-radius: 0.375rem;
             background-color: #0f172a;
             position: relative;
@@ -264,7 +276,7 @@ HTML_TEMPLATE = f"""<!DOCTYPE html>
         .charts-container {{
             display: grid;
             grid-template-columns: 1fr;
-            gap: 1.5rem;
+            gap: 1.25rem;
         }}
 
         @media (min-width: 1024px) {{
@@ -280,7 +292,7 @@ HTML_TEMPLATE = f"""<!DOCTYPE html>
             padding: 1rem;
             display: flex;
             flex-direction: column;
-            height: 480px;
+            height: 460px;
         }}
 
         .chart-card h2 {{
@@ -326,7 +338,7 @@ HTML_TEMPLATE = f"""<!DOCTYPE html>
     <header>
         <div class="logo-area">
             <h1>ISRO SIH26168 Interactive Map Dashboard</h1>
-            <p>Live OpenStreetMap Dead Reckoning & GNSS Outage Navigation Suite</p>
+            <p>Live OpenStreetMap Dead Reckoning & Real-Time Phone IMU Suite</p>
         </div>
         <div class="controls">
             <button class="btn-gps" onclick="detectGPSLocation()">📍 Use My GPS Location</button>
@@ -343,12 +355,14 @@ HTML_TEMPLATE = f"""<!DOCTYPE html>
     </header>
 
     <div class="main-container">
+        <!-- Wi-Fi Connect Banner -->
         <div class="ip-banner">
-            <span>📱 <strong>Mobile Access:</strong> Open this link on your phone (same Wi-Fi):</span>
+            <span>📱 <strong>Mobile Access:</strong> Open this URL in Chrome on your phone (same Wi-Fi):</span>
             <code>http://{LOCAL_IP}:8080</code>
             <span id="gpsStatus" style="font-size: 0.85rem; color: #a78bfa; margin-left: auto;">📍 Detecting your GPS location...</span>
         </div>
 
+        <!-- Metric Summary Cards -->
         <div class="metrics-grid">
             <div class="metric-card">
                 <span class="title">ESKF ATE RMSE</span>
@@ -372,6 +386,113 @@ HTML_TEMPLATE = f"""<!DOCTYPE html>
             </div>
         </div>
 
+        <!-- 📱 LIVE PHONE IMU & MOTION TELEMETRY CARD -->
+        <div class="map-section" style="border: 1px solid #3b82f6;">
+            <div class="map-header">
+                <div style="display: flex; align-items: center; gap: 0.6rem;">
+                    <h2>📱 Live Phone IMU & Motion Telemetry (Hardware Sensors)</h2>
+                    <span id="phoneStatusBadge" class="legend-badge" style="background: #1e293b; color: #94a3b8;">
+                        <span id="phoneStatusDot" class="dot" style="background: #64748b;"></span>
+                        <span id="phoneStatusText">Waiting for Phone...</span>
+                    </span>
+                </div>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <button id="sensorPermBtn" onclick="requestSensorPermission()" style="padding: 0.35rem 0.8rem; font-size: 0.85rem; background: #2563eb; color: white;">📱 Connect Phone Sensors</button>
+                    <button onclick="simulatePhoneMovement()" style="padding: 0.35rem 0.8rem; font-size: 0.85rem; background: #334155; color: #94a3b8;">Test Shake/Tilt</button>
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 1rem; margin-top: 0.25rem;">
+                <!-- 1. Attitude Indicator Canvas -->
+                <div style="background: #0f172a; border-radius: 0.5rem; padding: 1rem; border: 1px solid var(--card-border); display: flex; flex-direction: column; align-items: center;">
+                    <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.5rem; width: 100%; display: flex; justify-content: space-between;">
+                        <span>Artificial Horizon (Attitude)</span>
+                        <span id="motionStatusBadge" style="color: #4ade80; font-weight: 600;">STATIONARY (ZUPT)</span>
+                    </div>
+                    <canvas id="horizonCanvas" width="220" height="170" style="border-radius: 0.5rem; background: #000; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);"></canvas>
+                    <div style="display: flex; justify-content: space-around; width: 100%; margin-top: 0.75rem; font-size: 0.85rem;">
+                        <div>Pitch: <strong id="valPitch" style="color: #38bdf8;">0.0°</strong></div>
+                        <div>Roll: <strong id="valRoll" style="color: #38bdf8;">0.0°</strong></div>
+                        <div>Compass: <strong id="valYaw" style="color: #f2c14e;">0.0°</strong></div>
+                    </div>
+                </div>
+
+                <!-- 2. Accelerometer 3-Axis -->
+                <div style="background: #0f172a; border-radius: 0.5rem; padding: 1rem; border: 1px solid var(--card-border); display: flex; flex-direction: column; justify-content: space-between;">
+                    <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.5rem; display: flex; justify-content: space-between;">
+                        <span>Accelerometer (m/s²)</span>
+                        <span>Total: <strong id="valAmag" style="color: #38bdf8;">9.81</strong> m/s²</span>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 0.6rem;">
+                        <div>
+                            <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 0.2rem;">
+                                <span>X (Lateral)</span><strong id="valAx">0.00</strong>
+                            </div>
+                            <div style="background: #1e293b; height: 8px; border-radius: 4px; overflow: hidden;">
+                                <div id="barAx" style="background: #38bdf8; height: 100%; width: 50%; transition: width 0.05s;"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 0.2rem;">
+                                <span>Y (Longitudinal)</span><strong id="valAy">0.00</strong>
+                            </div>
+                            <div style="background: #1e293b; height: 8px; border-radius: 4px; overflow: hidden;">
+                                <div id="barAy" style="background: #38bdf8; height: 100%; width: 50%; transition: width 0.05s;"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 0.2rem;">
+                                <span>Z (Vertical)</span><strong id="valAz">9.81</strong>
+                            </div>
+                            <div style="background: #1e293b; height: 8px; border-radius: 4px; overflow: hidden;">
+                                <div id="barAz" style="background: #38bdf8; height: 100%; width: 80%; transition: width 0.05s;"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem;">
+                        Level phone = ~9.81 m/s² gravity vector on Z.
+                    </div>
+                </div>
+
+                <!-- 3. Gyroscope 3-Axis -->
+                <div style="background: #0f172a; border-radius: 0.5rem; padding: 1rem; border: 1px solid var(--card-border); display: flex; flex-direction: column; justify-content: space-between;">
+                    <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.5rem;">
+                        <span>Gyroscope Rotation Rate (deg/s)</span>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 0.6rem;">
+                        <div>
+                            <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 0.2rem;">
+                                <span>ωX (Roll Rate)</span><strong id="valGx">0.00</strong>
+                            </div>
+                            <div style="background: #1e293b; height: 8px; border-radius: 4px; overflow: hidden;">
+                                <div id="barGx" style="background: #a78bfa; height: 100%; width: 50%; transition: width 0.05s;"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 0.2rem;">
+                                <span>ωY (Pitch Rate)</span><strong id="valGy">0.00</strong>
+                            </div>
+                            <div style="background: #1e293b; height: 8px; border-radius: 4px; overflow: hidden;">
+                                <div id="barGy" style="background: #a78bfa; height: 100%; width: 50%; transition: width 0.05s;"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 0.2rem;">
+                                <span>ωZ (Yaw Rate)</span><strong id="valGz">0.00</strong>
+                            </div>
+                            <div style="background: #1e293b; height: 8px; border-radius: 4px; overflow: hidden;">
+                                <div id="barGz" style="background: #a78bfa; height: 100%; width: 50%; transition: width 0.05s;"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem;">
+                        Angular velocity around phone body axes.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- OpenStreetMap View -->
         <div class="map-section">
             <div class="map-header">
                 <h2>🗺️ OpenStreetMap Navigation View (Live Trajectory Overlay)</h2>
@@ -386,6 +507,7 @@ HTML_TEMPLATE = f"""<!DOCTYPE html>
             <div id="map"></div>
         </div>
 
+        <!-- Plotly Charts -->
         <div class="charts-container">
             <div class="chart-card">
                 <h2>2D Position Trajectory (East vs North - Equal Aspect)</h2>
@@ -397,6 +519,7 @@ HTML_TEMPLATE = f"""<!DOCTYPE html>
             </div>
         </div>
 
+        <!-- Matplotlib Figures -->
         <div class="charts-container" style="margin-top: 1rem;">
             <div class="chart-card" style="grid-column: 1 / -1; height: 580px;">
                 <h2>Matplotlib Benchmark Figures (drnav.plotting PNG exports)</h2>
@@ -420,22 +543,29 @@ HTML_TEMPLATE = f"""<!DOCTYPE html>
         let userLat = 12.9716;
         let userLon = 77.5946;
 
+        // Telemetry State
+        let isPhoneBroadcasting = false;
+        let lastPostTimestamp = 0;
+        let localTelemetry = {{
+            pitch: 0.0, roll: 0.0, yaw: 0.0,
+            ax: 0.0, ay: 0.0, az: 9.81, amag: 9.81,
+            gx: 0.0, gy: 0.0, gz: 0.0,
+            still: true
+        }};
+
         function initMap() {{
             map = L.map('map').setView([userLat, userLon], 15);
 
-            // Standard OpenStreetMap Tiles
             const osmTiles = L.tileLayer('https://tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
                 maxZoom: 19,
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                attribution: '&copy; OpenStreetMap contributors'
             }}).addTo(map);
 
-            // Dark CartoDB Tiles
             const darkTiles = L.tileLayer('https://{{s}}.basemaps.cartocdn.com/dark_all/{{z}}/{{x}}/{{y}}{{r}}.png', {{
                 maxZoom: 19,
                 attribution: '&copy; OpenStreetMap &copy; CARTO'
             }});
 
-            // Esri Satellite Tiles
             const satTiles = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{{z}}/{{y}}/{{x}}', {{
                 maxZoom: 19,
                 attribution: '&copy; Esri World Imagery'
@@ -452,7 +582,6 @@ HTML_TEMPLATE = f"""<!DOCTYPE html>
             eskfLayer = L.polyline([], {{color: '#2563eb', weight: 4, opacity: 0.95}}).addTo(map);
             gnssLayer = L.layerGroup().addTo(map);
 
-            // Vehicle Marker
             const vehicleIcon = L.divIcon({{
                 className: 'custom-vehicle-icon',
                 html: '<div style="background:#0284c7; width:18px; height:18px; border-radius:50%; border:3px solid #ffffff; box-shadow:0 0 10px #0284c7;"></div>',
@@ -461,7 +590,6 @@ HTML_TEMPLATE = f"""<!DOCTYPE html>
             }});
             vehicleMarker = L.marker([userLat, userLon], {{icon: vehicleIcon}}).addTo(map);
 
-            // User GPS Location Pin Marker
             const userIcon = L.divIcon({{
                 className: 'custom-user-icon',
                 html: '<div style="background:#10b981; width:22px; height:22px; border-radius:50%; border:3px solid #ffffff; box-shadow:0 0 12px #10b981; display:flex; align-items:center; justify-content:center; color:white; font-size:10px; font-weight:bold;">📍</div>',
@@ -474,6 +602,232 @@ HTML_TEMPLATE = f"""<!DOCTYPE html>
                 map.invalidateSize();
             }}, 200);
         }}
+
+        // ==========================================
+        // 📱 LIVE PHONE IMU & SENSORS IMPLEMENTATION
+        // ==========================================
+
+        function drawHorizon(pitch, roll, yaw) {{
+            const canvas = document.getElementById('horizonCanvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width;
+            const h = canvas.height;
+            const cx = w / 2;
+            const cy = h / 2;
+
+            ctx.save();
+            ctx.clearRect(0, 0, w, h);
+
+            // Rotate canvas for Roll
+            ctx.translate(cx, cy);
+            const rollRad = (roll * Math.PI) / 180;
+            ctx.rotate(rollRad);
+
+            // Vertical pitch offset (1.5 px per degree)
+            const pitchOffset = Math.max(-cy, Math.min(cy, pitch * 1.5));
+
+            // Sky (Blue)
+            ctx.fillStyle = "#1e3a8a";
+            ctx.fillRect(-w, -h * 2, w * 2, h * 2 + pitchOffset);
+
+            // Ground (Slate / Earth)
+            ctx.fillStyle = "#334155";
+            ctx.fillRect(-w, pitchOffset, w * 2, h * 2);
+
+            // White Horizon Dividing Line
+            ctx.strokeStyle = "#f8fafc";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(-w, pitchOffset);
+            ctx.lineTo(w, pitchOffset);
+            ctx.stroke();
+
+            // Pitch Ladder Marks (-30° to +30°)
+            ctx.strokeStyle = "rgba(248, 250, 252, 0.5)";
+            ctx.fillStyle = "rgba(248, 250, 252, 0.8)";
+            ctx.font = "9px Inter, sans-serif";
+            [-30, -20, -10, 10, 20, 30].forEach(deg => {{
+                const y = pitchOffset - (deg * 1.5);
+                if (y > -cy + 12 && y < cy - 12) {{
+                    const lineLen = deg % 20 === 0 ? 26 : 14;
+                    ctx.beginPath();
+                    ctx.moveTo(-lineLen, y);
+                    ctx.lineTo(lineLen, y);
+                    ctx.stroke();
+                    ctx.fillText(Math.abs(deg) + "°", lineLen + 4, y + 3);
+                }}
+            }});
+
+            ctx.restore();
+
+            // Fixed Reticle (Aircraft symbol)
+            ctx.strokeStyle = "#f2c14e";
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(cx - 25, cy);
+            ctx.lineTo(cx - 8, cy);
+            ctx.lineTo(cx, cy + 6);
+            ctx.lineTo(cx + 8, cy);
+            ctx.lineTo(cx + 25, cy);
+            ctx.stroke();
+
+            ctx.fillStyle = "#f2c14e";
+            ctx.beginPath();
+            ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+            ctx.fill();
+        }}
+
+        function updateTelemetryUI(t) {{
+            document.getElementById('valPitch').innerText = t.pitch.toFixed(1) + "°";
+            document.getElementById('valRoll').innerText = t.roll.toFixed(1) + "°";
+            document.getElementById('valYaw').innerText = t.yaw.toFixed(1) + "°";
+
+            document.getElementById('valAx').innerText = t.ax.toFixed(2);
+            document.getElementById('valAy').innerText = t.ay.toFixed(2);
+            document.getElementById('valAz').innerText = t.az.toFixed(2);
+            document.getElementById('valAmag').innerText = t.amag.toFixed(2);
+
+            document.getElementById('valGx').innerText = t.gx.toFixed(1);
+            document.getElementById('valGy').innerText = t.gy.toFixed(1);
+            document.getElementById('valGz').innerText = t.gz.toFixed(1);
+
+            const normBar = (val, maxVal) => Math.max(0, Math.min(100, ((val + maxVal) / (2 * maxVal)) * 100)) + "%";
+            document.getElementById('barAx').style.width = normBar(t.ax, 15);
+            document.getElementById('barAy').style.width = normBar(t.ay, 15);
+            document.getElementById('barAz').style.width = normBar(t.az, 15);
+
+            document.getElementById('barGx').style.width = normBar(t.gx, 180);
+            document.getElementById('barGy').style.width = normBar(t.gy, 180);
+            document.getElementById('barGz').style.width = normBar(t.gz, 180);
+
+            const statusBadge = document.getElementById('motionStatusBadge');
+            if (t.still) {{
+                statusBadge.innerText = "STATIONARY (ZUPT)";
+                statusBadge.style.color = "#4ade80";
+            }} else {{
+                statusBadge.innerText = "IN MOTION (DYNAMIC)";
+                statusBadge.style.color = "#38bdf8";
+            }}
+
+            drawHorizon(t.pitch, t.roll, t.yaw);
+        }}
+
+        function handleOrientation(e) {{
+            localTelemetry.yaw = e.alpha || 0;
+            localTelemetry.pitch = e.beta || 0;
+            localTelemetry.roll = e.gamma || 0;
+            isPhoneBroadcasting = true;
+            onSensorStream();
+        }}
+
+        function handleMotion(e) {{
+            const acc = e.accelerationIncludingGravity || e.acceleration;
+            if (acc) {{
+                localTelemetry.ax = acc.x || 0;
+                localTelemetry.ay = acc.y || 0;
+                localTelemetry.az = acc.z || 0;
+                localTelemetry.amag = Math.sqrt(localTelemetry.ax*localTelemetry.ax + localTelemetry.ay*localTelemetry.ay + localTelemetry.az*localTelemetry.az);
+            }}
+            const rot = e.rotationRate;
+            if (rot) {{
+                localTelemetry.gx = rot.alpha || 0;
+                localTelemetry.gy = rot.beta || 0;
+                localTelemetry.gz = rot.gamma || 0;
+            }}
+            const gyroMag = Math.sqrt(localTelemetry.gx*localTelemetry.gx + localTelemetry.gy*localTelemetry.gy + localTelemetry.gz*localTelemetry.gz);
+            const accDiff = Math.abs(localTelemetry.amag - 9.81);
+            localTelemetry.still = (gyroMag < 4.0 && accDiff < 0.6);
+
+            isPhoneBroadcasting = true;
+            onSensorStream();
+        }}
+
+        function onSensorStream() {{
+            updateTelemetryUI(localTelemetry);
+            document.getElementById('phoneStatusDot').style.background = "#10b981";
+            document.getElementById('phoneStatusText').innerText = "Streaming Local Phone Sensors";
+            document.getElementById('phoneStatusBadge').style.color = "#10b981";
+
+            const now = performance.now();
+            if (now - lastPostTimestamp > 90) {{
+                lastPostTimestamp = now;
+                fetch('/api/telemetry', {{
+                    method: 'POST',
+                    headers: {{'Content-Type': 'application/json'}},
+                    body: JSON.stringify(localTelemetry)
+                }}).catch(() => {{}});
+            }}
+        }}
+
+        function requestSensorPermission() {{
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {{
+                DeviceOrientationEvent.requestPermission()
+                    .then(res => {{
+                        if (res === 'granted') {{
+                            window.addEventListener('deviceorientation', handleOrientation, true);
+                            window.addEventListener('devicemotion', handleMotion, true);
+                            document.getElementById('sensorPermBtn').innerText = "✅ Sensors Connected";
+                            document.getElementById('sensorPermBtn').style.background = "#10b981";
+                        }}
+                    }})
+                    .catch(console.error);
+            }} else {{
+                window.addEventListener('deviceorientation', handleOrientation, true);
+                window.addEventListener('devicemotion', handleMotion, true);
+                document.getElementById('sensorPermBtn').innerText = "✅ Sensors Connected";
+                document.getElementById('sensorPermBtn').style.background = "#10b981";
+            }}
+        }}
+
+        function simulatePhoneMovement() {{
+            let angle = 0;
+            const simInterval = setInterval(() => {{
+                angle += 0.1;
+                localTelemetry.pitch = Math.sin(angle) * 22;
+                localTelemetry.roll = Math.cos(angle * 0.8) * 35;
+                localTelemetry.yaw = (localTelemetry.yaw + 2) % 360;
+                localTelemetry.ax = Math.sin(angle) * 3.5;
+                localTelemetry.ay = Math.cos(angle) * 2.8;
+                localTelemetry.az = 9.81 + Math.sin(angle * 2) * 1.5;
+                localTelemetry.amag = Math.sqrt(localTelemetry.ax**2 + localTelemetry.ay**2 + localTelemetry.az**2);
+                localTelemetry.gx = Math.cos(angle) * 25;
+                localTelemetry.gy = Math.sin(angle) * 15;
+                localTelemetry.gz = 10;
+                localTelemetry.still = false;
+                onSensorStream();
+                if (angle > 6) {{
+                    clearInterval(simInterval);
+                    localTelemetry.still = true;
+                    onSensorStream();
+                }}
+            }}, 50);
+        }}
+
+        // PC Background Poller for Phone Telemetry
+        setInterval(async () => {{
+            if (isPhoneBroadcasting) return;
+            try {{
+                const res = await fetch('/api/telemetry');
+                if (res.ok) {{
+                    const data = await res.json();
+                    if (data.active) {{
+                        document.getElementById('phoneStatusDot').style.background = "#38bdf8";
+                        document.getElementById('phoneStatusText').innerText = "Receiving Phone Stream (Wi-Fi)";
+                        document.getElementById('phoneStatusBadge').style.color = "#38bdf8";
+                        updateTelemetryUI(data);
+                    }} else {{
+                        document.getElementById('phoneStatusDot').style.background = "#64748b";
+                        document.getElementById('phoneStatusText').innerText = "Waiting for Phone... (Open http://{LOCAL_IP}:8080 on mobile)";
+                        document.getElementById('phoneStatusBadge').style.color = "#94a3b8";
+                    }}
+                }}
+            }} catch(e) {{}}
+        }}, 120);
+
+        // ==========================================
+        // GPS DETECTION & SCENARIO RUNNER
+        // ==========================================
 
         function detectGPSLocation() {{
             const gpsStatus = document.getElementById('gpsStatus');
@@ -494,7 +848,6 @@ HTML_TEMPLATE = f"""<!DOCTYPE html>
                         loadScenario();
                     }},
                     (err) => {{
-                        console.warn("Geolocation permission error or unavailable:", err.message);
                         gpsStatus.innerText = "📍 GPS Permission Denied (Using default reference origin)";
                         loadScenario();
                     }},
@@ -735,6 +1088,7 @@ HTML_TEMPLATE = f"""<!DOCTYPE html>
 
         window.onload = () => {{
             initMap();
+            drawHorizon(0, 0, 0);
             detectGPSLocation();
         }};
     </script>
@@ -747,13 +1101,47 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         if self.path == "/" or self.path == "/index.html":
             self.send_response(200)
-            self.send_header("Content-Type", "text/html")
+            self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()
             self.wfile.write(HTML_TEMPLATE.encode("utf-8"))
             return
 
+        if self.path == "/api/telemetry":
+            now = time.time()
+            is_active = (now - latest_telemetry.get("last_seen", 0.0)) < 3.0
+            resp_data = dict(latest_telemetry)
+            resp_data["active"] = is_active
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(json.dumps(resp_data).encode("utf-8"))
+            return
+
         if self.path.startswith("/api/run"):
             self.handle_run_api()
+            return
+
+        self.send_error(404, "Not Found")
+
+    def do_POST(self) -> None:
+        if self.path == "/api/telemetry":
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(content_length).decode("utf-8")
+            try:
+                data = json.loads(body)
+                global latest_telemetry
+                latest_telemetry.update(data)
+                latest_telemetry["active"] = True
+                latest_telemetry["last_seen"] = time.time()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(b'{"status": "ok"}')
+            except Exception:
+                self.send_response(400)
+                self.end_headers()
             return
 
         self.send_error(404, "Not Found")
@@ -833,6 +1221,7 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
 
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
+        self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(json.dumps(response_data).encode("utf-8"))
 
