@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">DR Logger</string>
+    <string name="channel_name">Recording</string>
+</resources>

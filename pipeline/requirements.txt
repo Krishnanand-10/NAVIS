@@ -1,0 +1,12 @@
+numpy>=2.0
+scipy>=1.14
+matplotlib>=3.9
+pytest>=8.0
+
+# learned speed head
+torch>=2.4
+
+# model export for the Android handoff (see scripts/export_model.py)
+onnx>=1.17
+onnxscript>=0.1
+onnxruntime>=1.19

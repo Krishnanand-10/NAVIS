@@ -1,3 +1,0 @@
-"""
-NAVIS Unit Test Suite
-"""
