@@ -19,8 +19,7 @@
 > task is **§5.2 — evaluate on real public data**; the reasoning is in the
 > Session 4 "Next" entry.
 >
-> **Repo:** https://github.com/Akarshx-x/sih26168-dead-reckoning (private,
-> branch `main`). Working copy: `~/Desktop/ml/Claude/SIH`, venv at `SIH/.venv`.
+> **Repo:** https://github.com/Krishnanand-10/NAVIS (branch `main`). Working copy: `C:\Users\Acer\OneDrive\Documents\NAVIS`.
 
 **Smart India Hackathon 2026, problem statement SIH26168 (ISRO):**
 *"AI-ML based Intelligent Dead Reckoning system for seamless navigation."*
@@ -363,9 +362,17 @@ still needs adding as a collaborator:
    and sample-rate issues flagged in `ImuCollector` to bite here first.
 2. **§5.1, vehicle spectral vibration.** More interesting technically, but
    tuning the simulator further *before* checking it against reality risks
-   over-fitting to our own assumptions. Do it after step 1.
 3. **§5.3, map matching.** Probably the largest single accuracy win for
    vehicles, and pure Python.
+
+### Session 5 — 2026-09-07 · Verified test suite and synchronized to GitHub
+**Goal:** Verify test suite on Windows workstation and synchronize repository state to GitHub.
+**Did:** Ran full test suite (48/48 passed in 234 s). Linked repository to `https://github.com/Krishnanand-10/NAVIS`, updated commit history to replace legacy dashboard prototype with the complete classical ESKF, ML velocity head, and Android logger architecture, and pushed cleanly to branch `main`.
+**Findings:** All 48 tests pass cleanly on Python 3.13 on Windows with CPU PyTorch.
+**Left off at:** 48 tests passing; GitHub repo fully synchronized and clean.
+**Next:** §5.2 — evaluate on real public data (e.g. Google Smartphone Decimeter Challenge).
+
+---
 
 ## 9. How to maintain this file
 
